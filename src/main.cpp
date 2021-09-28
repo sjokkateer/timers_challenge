@@ -19,8 +19,9 @@ void setup() {
 
     // LEDs
     DDRD |= (1 << ledPins[i]);
-    PORTD &= ~(1 << ledPins[i]);
+    PORTD &= ~(1 << ledPins[i]);    
 
+    // Take current button pin values (hopefully they are all pulled high now (because caps))
     previous[i] = (PINC & (1 << buttonPins[i])) >> buttonPins[i];
   }
 
