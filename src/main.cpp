@@ -9,6 +9,7 @@ const uint8_t NUMBER_OF_LEDS = 3;
 const uint8_t ledPins[] = {PD6, PD3, PD5};
 const char* colors[] = {"RED", "GREEN", "BLUE"};
 uint8_t ledPwmValues[] = {0, 0, 0};
+uint8_t resetButtonPreviousValue;
 
 uint8_t currentValue;
 uint8_t selectedLed;
@@ -37,12 +38,15 @@ void setup() {
   // 2 Input pins for the rotary encoder.
   DDRB &= ~(1 << PB1);
   DDRB &= ~(1 << PB2);
+  // Reset button input
+  DDRB &= ~(1 << PB3);
+  resetButtonPreviousValue = (PINB & (1 << PB3)) >> PB3;
 
   // Interrupts
   sei();
   // Interrupts for the rotary encoder
   PCICR |= (1 << PCIE0);
-  PCMSK0 |= (1 << PCINT2);
+  PCMSK0 |= (1 << PCINT3) | (1 << PCINT2);
   // Interrupts for the push buttons
   PCICR |= (1 << PCIE1);
   PCMSK1 |= (1 << PCINT8) | (1 << PCINT9) | (1 << PCINT10);
@@ -53,29 +57,40 @@ ISR(PCINT0_vect)
   // If at least one color LED is selected through a push button.
   if (initialSelection)
   {
-    // Both pins high, counter clockwise?
-    if ((PINB & (1 << PB1)) >> PB1 && (PINB & (1 << PB2)) >> PB2)
+    if (resetButtonPreviousValue != (PINB & (1 << PB3)) >> PB3)
     {
-      if (ledPwmValues[selectedLed] > 0)
+      resetButtonPreviousValue = (PINB & (1 << PB3)) >> PB3;
+      
+      if (resetButtonPreviousValue)
       {
-        ledPwmValues[selectedLed]--;
+        ledPwmValues[selectedLed] = 0;
         analogWrite(ledPins[selectedLed], ledPwmValues[selectedLed]);
       }
-      
-      interrupted = true;
     }
-    
-    // PB2 high, other low, clockwise?
-    if ((PINB & (1 << PB2)) >> PB2 && !((PINB & (1 << PB1)) >> PB1))
+    else 
     {
-      if (ledPwmValues[selectedLed] < 255)
+      // Both pins high, counter clockwise?
+      if ((PINB & (1 << PB1)) >> PB1 && (PINB & (1 << PB2)) >> PB2)
       {
-        ledPwmValues[selectedLed]++;
-        analogWrite(ledPins[selectedLed], ledPwmValues[selectedLed]);
+        if (ledPwmValues[selectedLed] > 0)
+        {
+          ledPwmValues[selectedLed]--;
+          analogWrite(ledPins[selectedLed], ledPwmValues[selectedLed]);
+        }
       }
       
-      interrupted = true;
+      // PB2 high, other low, clockwise?
+      if ((PINB & (1 << PB2)) >> PB2 && !((PINB & (1 << PB1)) >> PB1))
+      {
+        if (ledPwmValues[selectedLed] < 255)
+        {
+          ledPwmValues[selectedLed]++;
+          analogWrite(ledPins[selectedLed], ledPwmValues[selectedLed]);
+        } 
+      }
     }
+
+    interrupted = true;
   }
 }
 
