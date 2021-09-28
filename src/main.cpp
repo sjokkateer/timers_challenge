@@ -7,10 +7,19 @@ uint8_t previous[NUMBER_OF_BUTTONS];
 
 const uint8_t NUMBER_OF_LEDS = 3;
 const uint8_t ledPins[] = {PD6, PD3, PD5};
+const char* colors[] = {"RED", "GREEN", "BLUE"};
+uint8_t ledPwmValues[] = {0, 0, 0};
 
 uint8_t currentValue;
+uint8_t selectedLed;
+
+volatile bool initialSelection = false;
+volatile bool interrupted = false;
+volatile bool selectionChanged = false;
 
 void setup() {
+  Serial.begin(9600);
+
   for (int i = 0; i < NUMBER_OF_BUTTONS; i++)
   {
     // Buttons
@@ -25,10 +34,49 @@ void setup() {
     previous[i] = (PINC & (1 << buttonPins[i])) >> buttonPins[i];
   }
 
+  // 2 Input pins for the rotary encoder.
+  DDRB &= ~(1 << PB1);
+  DDRB &= ~(1 << PB2);
+
   // Interrupts
   sei();
+  // Interrupts for the rotary encoder
+  PCICR |= (1 << PCIE0);
+  PCMSK0 |= (1 << PCINT2);
+  // Interrupts for the push buttons
   PCICR |= (1 << PCIE1);
   PCMSK1 |= (1 << PCINT8) | (1 << PCINT9) | (1 << PCINT10);
+}
+
+ISR(PCINT0_vect)
+{
+  // If at least one color LED is selected through a push button.
+  if (initialSelection)
+  {
+    // Both pins high, counter clockwise?
+    if ((PINB & (1 << PB1)) >> PB1 && (PINB & (1 << PB2)) >> PB2)
+    {
+      if (ledPwmValues[selectedLed] > 0)
+      {
+        ledPwmValues[selectedLed]--;
+        analogWrite(ledPins[selectedLed], ledPwmValues[selectedLed]);
+      }
+      
+      interrupted = true;
+    }
+    
+    // PB2 high, other low, clockwise?
+    if ((PINB & (1 << PB2)) >> PB2 && !((PINB & (1 << PB1)) >> PB1))
+    {
+      if (ledPwmValues[selectedLed] < 255)
+      {
+        ledPwmValues[selectedLed]++;
+        analogWrite(ledPins[selectedLed], ledPwmValues[selectedLed]);
+      }
+      
+      interrupted = true;
+    }
+  }
 }
 
 ISR(PCINT1_vect)
@@ -43,10 +91,24 @@ ISR(PCINT1_vect)
 
       if (!currentValue) break;
 
-      PORTD ^= (1 << ledPins[i]);
+      selectedLed = i;
+      initialSelection = true;
+      selectionChanged = true;
     }
   }
 }
 
 void loop() {
+  if (selectionChanged)
+  {
+    Serial.print("CHANGED TO "); 
+    Serial.println(colors[selectedLed]);
+    selectionChanged = false;
+  }
+
+  if (interrupted)
+  {
+    Serial.println(ledPwmValues[selectedLed]);
+    interrupted = false;
+  }
 }
