@@ -64,29 +64,24 @@ ISR(PCINT0_vect)
       if (resetButtonPreviousValue)
       {
         ledPwmValues[selectedLed] = 0;
-        analogWrite(ledPins[selectedLed], ledPwmValues[selectedLed]);
       }
     }
-    else 
+    // Since we only interrupt on PB2 we get 1 -> 0 -> 1 and we only care about when 1
+    else if ((PINB & (1 << PB2)) >> PB2)
     {
-      // Both pins high, counter clockwise?
-      if ((PINB & (1 << PB1)) >> PB1 && (PINB & (1 << PB2)) >> PB2)
+      if ((PINB & (1 << PB1)) >> PB1)
       {
         if (ledPwmValues[selectedLed] > 0)
         {
           ledPwmValues[selectedLed]--;
-          analogWrite(ledPins[selectedLed], ledPwmValues[selectedLed]);
         }
       }
-      
-      // PB2 high, other low, clockwise?
-      if ((PINB & (1 << PB2)) >> PB2 && !((PINB & (1 << PB1)) >> PB1))
+      else
       {
         if (ledPwmValues[selectedLed] < 255)
         {
           ledPwmValues[selectedLed]++;
-          analogWrite(ledPins[selectedLed], ledPwmValues[selectedLed]);
-        } 
+        }
       }
     }
 
@@ -114,6 +109,13 @@ ISR(PCINT1_vect)
 }
 
 void loop() {
+  if (!initialSelection)
+  {
+    return;
+  }
+  
+  analogWrite(ledPins[selectedLed], ledPwmValues[selectedLed]);
+  
   if (selectionChanged)
   {
     Serial.print("CHANGED TO "); 
