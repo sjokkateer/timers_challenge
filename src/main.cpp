@@ -1,5 +1,10 @@
 #include <Arduino.h>
 
+#define PIN_VALUE(PORT_INPUT_PIN_ADDRESS, BIT) (PORT_INPUT_PIN_ADDRESS & (1 << BIT)) >> BIT
+#define INPUT_PIN(DATA_DIRECTION_REGISTER, BIT) DATA_DIRECTION_REGISTER &= ~(1 << BIT)
+#define OUTPUT_PIN(DATA_DIRECTION_REGISTER, BIT) DATA_DIRECTION_REGISTER |= (1 << BIT)
+#define OUTPUT_LOW(PORT_OUTPUT_PIN_ADDRESS, BIT) PORT_OUTPUT_PIN_ADDRESS &= ~(1 << BIT)
+
 const uint8_t NUMBER_OF_BUTTONS = 3;
 const uint8_t buttonPins[] = {PC0, PC1, PC2};
 
@@ -24,23 +29,24 @@ void setup() {
   for (int i = 0; i < NUMBER_OF_BUTTONS; i++)
   {
     // Buttons
-    DDRC &= ~(1 << buttonPins[i]);
+    INPUT_PIN(DDRC, buttonPins[i]);
+    // Internal pull-up
     PORTC |= (1 << buttonPins[i]);
 
     // LEDs
-    DDRD |= (1 << ledPins[i]);
-    PORTD &= ~(1 << ledPins[i]);    
+    OUTPUT_PIN(DDRD, ledPins[i]);
+    OUTPUT_LOW(PORTD, ledPins[i]);
 
     // Take current button pin values (hopefully they are all pulled high now (because caps))
-    previous[i] = (PINC & (1 << buttonPins[i])) >> buttonPins[i];
+    previous[i] = PIN_VALUE(PINC, buttonPins[i]);
   }
 
   // 2 Input pins for the rotary encoder.
-  DDRB &= ~(1 << PB1);
-  DDRB &= ~(1 << PB2);
+  INPUT_PIN(DDRB, PB1);
+  INPUT_PIN(DDRB, PB2);
   // Reset button input
-  DDRB &= ~(1 << PB3);
-  resetButtonPreviousValue = (PINB & (1 << PB3)) >> PB3;
+  INPUT_PIN(DDRB, PB3);
+  resetButtonPreviousValue = PIN_VALUE(PINB, PB3);
 
   // Interrupts
   sei();
@@ -57,9 +63,9 @@ ISR(PCINT0_vect)
   // If at least one color LED is selected through a push button.
   if (initialSelection)
   {
-    if (resetButtonPreviousValue != (PINB & (1 << PB3)) >> PB3)
+    if (resetButtonPreviousValue != PIN_VALUE(PINB, PB3))
     {
-      resetButtonPreviousValue = (PINB & (1 << PB3)) >> PB3;
+      resetButtonPreviousValue = PIN_VALUE(PINB, PB3);
       
       if (resetButtonPreviousValue)
       {
@@ -67,9 +73,9 @@ ISR(PCINT0_vect)
       }
     }
     // Since we only interrupt on PB2 we get 1 -> 0 -> 1 and we only care about when 1
-    else if ((PINB & (1 << PB2)) >> PB2)
+    else if (PIN_VALUE(PINB, PB2))
     {
-      if ((PINB & (1 << PB1)) >> PB1)
+      if (PIN_VALUE(PINB, PB1))
       {
         if (ledPwmValues[selectedLed] > 0)
         {
@@ -93,7 +99,7 @@ ISR(PCINT1_vect)
 {
   for (int i = 0; i < NUMBER_OF_BUTTONS; i++)
   {
-    currentValue = (PINC & (1 << buttonPins[i])) >> buttonPins[i];
+    currentValue = PIN_VALUE(PINC, buttonPins[i]);
 
     if (previous[i] != currentValue)
     {
